@@ -18,3 +18,4 @@
   - твердотельное реле SSR-10D
   
   Схема
+![Схема](https://raw.githubusercontent.com/Octagon80/fruitsDehydration/main/Schematic.png  "Схема")
