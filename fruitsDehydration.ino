@@ -30,13 +30,17 @@
  * 
   */
 
-#define DEBUG       false
+  
+//Определяем, где работает программа: на Ардуине?, тогда true
+#define INARDUINO false
+#define DEBUG       true
 #define USE_DS18B20 true
 #define USE_RELE    true
 #define USE_DISPLAY true
 #define USE_ENCODER true
 
-
+#if INARDUINO
+  
 #if USE_DS18B20
   #include <OneWire.h>
   #include <DallasTemperature.h>
@@ -84,7 +88,20 @@
  #define ENC_SW 93
  Encoder enc1(ENC_CLK, ENC_DT, ENC_SW);  // для работы c кнопкой
 #endif 
+  
+#else
+  #include <cstdlib>
+  using namespace std;
+  #include <stdio.h>
+  #include <string.h>
+  #include <cmath>
+  #include <time.h>
+  #include "Serial.h"
+  #include "Arduino.h"
+  ObjSerial Serial;
 
+  
+#endif 
 
 float tempValue = 20;
 float targetTempValue = 20;
@@ -99,19 +116,26 @@ unsigned long maxTimeoutUpdateTemper = 500;
 unsigned long curtimeoutUpdateTemper;
 
 
+//предопределение
+float endcoderGetValue();
+
 
 void relayInit(){
   #if DEBUG
     Serial.print( "void relayInit()\r\n" );
   #endif  
   #if USE_RELE
-    Serial.println( "Инициализация GyverRelay\r\n" );
-    pinMode(PIN_HEATER, OUTPUT);             // пин реле
-    digitalWrite(PIN_HEATER, LOW);
-    regulator.setpoint    = getTargetTemp();// установка температуры, к которой стремиться система управления
-    regulator.hysteresis  = 5;              // ширина гистерезиса
-    regulator.k           = 0.5;            // коэффициент обратной связи (подбирается по факту)
-    //regulator.dT        = 500;            // установить время итерации для getResultTimer
+    #if DEBUG
+      Serial.println( "Инициализация GyverRelay\r\n" );
+    #endif  
+    #if INARDUINO
+      pinMode(PIN_HEATER, OUTPUT);             // пин реле
+      digitalWrite(PIN_HEATER, LOW);
+      regulator.setpoint    = getTargetTemp();// установка температуры, к которой стремиться система управления
+      regulator.hysteresis  = 5;              // ширина гистерезиса
+      regulator.k           = 0.5;            // коэффициент обратной связи (подбирается по факту)
+      //regulator.dT        = 500;            // установить время итерации для getResultTimer
+    #endif  
  #else
     //Serial.println( "Игнорируем GyverRelay\r\n" );
  #endif   
@@ -131,7 +155,9 @@ void relaySetCurrentValue(float value ){
     #if DEBUG
       Serial.print( "GyverRelay input=" );Serial.print( value ); Serial.println( "\r\n" );
     #endif  
-    regulator.input    = value;
+    #if INARDUINO
+      regulator.input    = value;
+    #endif  
   #endif  
 }
 
@@ -141,9 +167,11 @@ void relaySetTargetValue( float value ){
   #endif  
   #if USE_RELE
     #if DEBUG
-      Serial.print( "GyverRelay setpoint=\r\n" );Serial.print( value ); Serial.println( "\r\n" );
-    #endif  
-  regulator.setpoint = value;    // установка температуры, к которой стремиться система управления
+      Serial.print( "GyverRelay setpoint=" );Serial.print( value ); Serial.println( "\r\n" );
+    #endif
+    #if INARDUINO  
+     regulator.setpoint = value;    // установка температуры, к которой стремиться система управления
+    #endif 
  #endif 
 }
 
@@ -209,10 +237,12 @@ void displayInit(){
     #if DEBUG
       Serial.println( "Инициализация дисплея\r\n" );
     #endif  
-    disp.clear();
-    disp.brightness(7);  // яркость, 0 - 7 (минимум - максимум)
-    disp.clear();
-    disp.displayByte(_H, _E, _L, _L);
+    #if INARDUINO
+      disp.clear();
+      disp.brightness(7);  // яркость, 0 - 7 (минимум - максимум)
+      disp.clear();
+      disp.displayByte(_H, _E, _L, _L);
+    #endif  
   #endif   
 }
 
@@ -232,7 +262,7 @@ void displayShow(bool setupMode ){
    * В режиме настройки отображать значение от энкодера,
    * а в обычном режиме - значение темпераутры
   */
-   if( setupMode ) dispayValue =  endcoderGetValue();
+  if( setupMode ) dispayValue =  endcoderGetValue();
   else  dispayValue =  getTemp();
   
   //даем команду модулю на перерисовку значения только тогда,
@@ -244,13 +274,15 @@ void displayShow(bool setupMode ){
     Digits[2] = (uint8_t)(dispayValue / 10) % 10;
     Digits[3] = (uint8_t)(dispayValue) % 10;
     #if USE_DISPLAY
-      disp.clear();
-      disp.displayByte( Digits );
+      #if INARDUINO
+        disp.clear();
+        disp.displayByte( Digits );
+       #endif  
     #endif  
     #if DEBUG
       Serial.print( "display: " );Serial.print(  Digits[0] ); Serial.print(  Digits[1] );Serial.print(  Digits[2] );Serial.print(  Digits[3] );Serial.println( "\r\n" );
     #endif  
-    dispayValue = dispayValueOld;
+    dispayValueOld = dispayValue;
   }
   
 }
@@ -264,7 +296,9 @@ void endcoderInit(){
     Serial.println( "void endcoderInit()\r\n" );
   #endif  
   #if USE_ENCODER
-    enc1.setType(TYPE2);    // тип энкодера TYPE1 одношаговый, TYPE2 двухшаговый. Если ваш энкодер работает странно, смените тип  
+    #if INARDUINO
+      enc1.setType(TYPE2);    // тип энкодера TYPE1 одношаговый, TYPE2 двухшаговый. Если ваш энкодер работает странно, смените тип  
+    #endif
   #endif  
 }
 
@@ -289,25 +323,29 @@ void encoderHandler(){
   int encValueOld = encValue;
 
   #if USE_ENCODER
-    enc1.tick();
+    #if INARDUINO
+      enc1.tick();
 
-    if (enc1.isRight()) encValue++;       // если был поворот направо, увеличиваем на 1
-    if (enc1.isLeft()) encValue--;      // если был поворот налево, уменьшаем на 1
+      if (enc1.isRight()) encValue++;       // если был поворот направо, увеличиваем на 1
+      if (enc1.isLeft()) encValue--;      // если был поворот налево, уменьшаем на 1
   
-    if (enc1.isRightH()) encValue += 5;   // если было удержание + поворот направо, увеличиваем на 5
-    if (enc1.isLeftH()) encValue -= 5;  // если было удержание + поворот налево, уменьшаем на 5  
+      if (enc1.isRightH()) encValue += 5;   // если было удержание + поворот направо, увеличиваем на 5
+      if (enc1.isLeftH()) encValue -= 5;  // если было удержание + поворот налево, уменьшаем на 5  
 
 
-     //ограничение значений разумными пределами
-     if( encValue<15) encValue = 15;
-     if( encValue>70) encValue = 70;
+       //ограничение значений разумными пределами
+       if( encValue<15) encValue = 15;
+       if( encValue>70) encValue = 70;
 
-    if (enc1.isTurn()) {       // если был совершён поворот (индикатор поворота в любую сторону)
-      #if DEBUG
-        Serial.print("encoder завершли крутить, значение=");Serial.println(encValue);  // выводим значение при повороте
-      #endif  
-      setTargetTemp( encValue );
-    }
+      if (enc1.isTurn()) {       // если был совершён поворот (индикатор поворота в любую сторону)
+        #if DEBUG
+          Serial.print("encoder завершли крутить, значение=");Serial.println(encValue);  // выводим значение при повороте
+        #endif  
+        setTargetTemp( encValue );
+      }
+    #else  
+     setTargetTemp( 30 );
+    #endif  
   #endif  
 
  if( encValue != encValueOld ) displayShow( true );   
@@ -319,8 +357,12 @@ void updateTemperature(){
     Serial.println( "void updateTemperature()\r\n" );
   #endif    
   #if USE_DS18B20
-    sensors.requestTemperatures();
-    tempValue = sensors.getTempCByIndex(0);
+    #if INARDUINO
+      sensors.requestTemperatures();
+      tempValue = sensors.getTempCByIndex(0);
+    #else  
+      tempValue = rand();
+    #endif
     #if DEBUG
       Serial.print("Real temperature: ");
       Serial.println(tempValue);
@@ -368,10 +410,11 @@ void loop(){
     curtimeoutUpdateTemper = millis();
   }
 
-
-  #if USE_RELE
-    digitalWrite(PIN_HEATER, regulator.getResult());  // отправляем на реле (ОС работает по своему таймеру)
-  #endif  
+  #if INARDUINO
+    #if USE_RELE
+      digitalWrite(PIN_HEATER, regulator.getResult());  // отправляем на реле (ОС работает по своему таймеру)
+    #endif  
+  #endif
 
   
 /*
@@ -379,3 +422,18 @@ void loop(){
 */
 
 }
+
+
+
+
+#if INARDUINO
+#else
+int main(int argc, char** argv) {
+   srand(time(NULL));
+    setup();
+    
+    while( 1==1 ) loop();
+    
+    return (EXIT_SUCCESS);
+}
+#endif
