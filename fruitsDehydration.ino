@@ -32,7 +32,7 @@
 
   
 //Определяем, где работает программа: на Ардуине?, тогда true
-#define INARDUINO false
+#define INARDUINO   true
 #define DEBUG       true
 #define USE_DS18B20 true
 #define USE_RELE    true
@@ -62,30 +62,30 @@
 
 #if USE_DS18B20
   //термодатчик DS18B20
-  #define PIN_T_SENSOR 6
+  #define PIN_T_SENSOR 0
   OneWire oneWire(PIN_T_SENSOR);
   DallasTemperature sensors(&oneWire);
 #endif  
 
 
 #if USE_RELE
-  #define PIN_HEATER 5
+  #define PIN_HEATER 6
   //Работа с реле, управление нагревателем
   GyverRelay regulator(REVERSE);
 #endif
   
 #if USE_DISPLAY
   //Дисплей
-  #define DISP_CLK 2
-  #define DISP_DIO 3
+  #define DISP_CLK 7
+  #define DISP_DIO 8
   GyverTM1637 disp(DISP_CLK, DISP_DIO);
 #endif
 
 #if USE_ENCODER
  //энкодер
- #define ENC_CLK 7
- #define ENC_DT 8
- #define ENC_SW 93
+ #define ENC_CLK 2
+ #define ENC_DT  3
+ #define ENC_SW  4
  Encoder enc1(ENC_CLK, ENC_DT, ENC_SW);  // для работы c кнопкой
 #endif 
   
