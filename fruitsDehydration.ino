@@ -57,14 +57,13 @@
 #include <GyverEncoder.h>
 
 
-
-
-
+ 
 #if USE_DS18B20
   //термодатчик DS18B20
   #define PIN_T_SENSOR 0
   OneWire oneWire(PIN_T_SENSOR);
   DallasTemperature sensors(&oneWire);
+  DeviceAddress tempDevAddress;
 #endif  
 
 
@@ -103,8 +102,41 @@
   
 #endif 
 
-float tempValue = 20;
-float targetTempValue = 20;
+//Значение темперутуры при выявленной ошибке работы с датчиком  
+#define TEMPVALUE_ERROR -999
+  
+/**
+ * Значение текущей температуры
+ * Использовать для получение и установки getTemp()/setTemp()
+ * @type float
+ */  
+float tempValue       = 20;
+/**
+ * Значение целевой температуры, к которой должна стремиться система
+ * Использовать для получение и установки getTargetTemp()/setTargetTemp()
+ * @type float
+ */  
+float tempTargetValue = 20;
+/**
+ * Наличие термодатчика
+ */
+bool tempSensIsPresent = false;
+/**
+ * Адрес датчика температуры успешно считан
+ */
+bool tempSensAddressPresent = false;
+/**
+ * Готовность системе к работе по термодатчику.
+ * @type boolean false Если термодатчик отсутствует, не готов, дает ложные значения
+ */
+bool readyByTempSensors = false;
+
+/**
+ * готовность работы нагревателя
+ * @type bool true == можно включать нагреватель
+ *            false == нельзя, если включен, выключить
+ */
+bool readyHeater = false;
 
 int encValue = 0;
 
@@ -119,6 +151,20 @@ unsigned long curtimeoutUpdateTemper;
 //предопределение
 float endcoderGetValue();
 
+
+/**
+ * Обновить готовность работы системы по термодатчику
+ * Ограничения:
+ *  работаем летом
+ *  до 70 градусов, иначе вырубаем нагреватель
+ */
+void updateAllowedSystem(){
+  //готовность термодатчика
+  readyByTempSensors = tempSensIsPresent && tempSensAddressPresent && getTemp()>5 && getTemp()<70 ;
+  
+  //готовность (разрешение) к включению нагревателя
+  readyHeater = readyByTempSensors;
+}
 
 void relayInit(){
   #if DEBUG
@@ -140,7 +186,6 @@ void relayInit(){
     //Serial.println( "Игнорируем GyverRelay\r\n" );
  #endif   
 }
-
 
 /**
  * Установить для решулировки текущее значение величины, которая регулируется
@@ -186,7 +231,7 @@ void setTargetTemp(float value){
   #if DEBUG
     Serial.print( "void setTargetTemp(float " );Serial.print( value ); Serial.print( ")" ); Serial.println( "\r\n" );
   #endif  
-  targetTempValue    = value;
+  tempTargetValue    = value;
   relaySetTargetValue(  value );
 }
 
@@ -198,7 +243,7 @@ float getTargetTemp(){
   #if DEBUG
     Serial.print( "float getTargetTemp()\r\n" );
   #endif  
-  return( targetTempValue );
+  return( tempTargetValue );
 }
 
 
@@ -221,7 +266,7 @@ float getTemp(){
   #if DEBUG
     Serial.print( "float getTemp()\r\n" );
   #endif  
-  return( tempValue );
+  return( (tempSensIsPresent)?tempValue: TEMPVALUE_ERROR );
 }
 
 
@@ -273,10 +318,20 @@ void displayShow(bool setupMode ){
     Digits[1] = (uint8_t)(dispayValue / 100) % 10;
     Digits[2] = (uint8_t)(dispayValue / 10) % 10;
     Digits[3] = (uint8_t)(dispayValue) % 10;
+    
+    //лидирующие нули заменяем на пусто
+    for(byte i=0; i<4; i++ ){
+        if( Digits[i] == 0 ) Digits[i] = _empty;
+        //до первого ненулевого значения
+        else break;
+    }
     #if USE_DISPLAY
       #if INARDUINO
         disp.clear();
-        disp.displayByte( Digits );
+        //При отсутствии готовности датчика температуре и режима отображения температуры
+        //показать код ошибки
+        if( !readyByTempSensors && !setupMode ) disp.displayByte( _E,_r,_r, _empty );
+        else disp.displayByte( Digits );
        #endif  
     #endif  
     #if DEBUG
@@ -355,24 +410,44 @@ void encoderHandler(){
 void updateTemperature(){
   #if DEBUG
     Serial.println( "void updateTemperature()\r\n" );
-  #endif    
+  #endif
+      
   #if USE_DS18B20
+  
     #if INARDUINO
-      sensors.requestTemperatures();
-      tempValue = sensors.getTempCByIndex(0);
+      //Если датчик найден и ранее был получен адрес датчика...
+     if( tempSensIsPresent && tempSensAddressPresent ){
+        //если датчик по-прежнему подключен
+       if( sensors.isConnected( tempDevAddress ) ){
+           //sensors.requestTemperatures();
+           ////sensors.requestTemperaturesByAddress( tempDevAddress );
+           //tempValue = sensors.getTempCByIndex(0);
+           tempValue = sensors.getTempC( tempDevAddress ); 
+       }else{
+         //иначе запомнить ошибочное значение температуры
+         //на которое контроль готовности системы к работе
+         //отреагирует как на запрет работы нагревателя
+         tempValue = TEMPVALUE_ERROR;
+       }
+     } 
+        
     #else  
-      tempValue = rand();
+      tempValue = rand() % 70;
     #endif
+    
     #if DEBUG
       Serial.print("Real temperature: ");
       Serial.println(tempValue);
     #endif  
+    
   #else  
-    tempValue = random(20,22);
+  
+    tempValue = rand() % 70;
     #if DEBUG
       Serial.print("Virtual temperature: ");
       Serial.println(tempValue);
     #endif  
+    
   #endif    
 
 }
@@ -391,6 +466,27 @@ void setup()
   displayInit();
   endcoderInit();
   
+  #if USE_DS18B20
+   sensors.begin();
+   tempSensIsPresent = sensors.getDS18Count() == 1; //sensors.getDeviceCount == 1;
+   
+   #if DEBUG
+     if( !tempSensIsPresent ){  
+       Serial.println("Термодатчик отсутствует, работа невозможна. ");
+     }  
+    #endif  
+
+  tempSensAddressPresent = false; 
+  if (tempSensIsPresent && sensors.getAddress(tempDevAddress, 0)){ 
+     tempSensAddressPresent = true;
+  }else{
+   #if DEBUG
+      Serial.println("Unable to find address for Device 0"); 
+    #endif       
+  }
+      
+  #endif
+
   curtimeoutUpdateTemper = millis();
 
 }
@@ -400,7 +496,7 @@ void setup()
  * 
  */
 void loop(){
-
+  updateAllowedSystem();
   displayShow( false );
   encoderHandler();
   
@@ -414,13 +510,16 @@ void loop(){
     #if USE_RELE
       digitalWrite(PIN_HEATER, regulator.getResult());  // отправляем на реле (ОС работает по своему таймеру)
     #endif  
+
+#if USE_RELE
+   //управление нагревателем по таймеру, если есть разрешение
+    if( readyHeater){
+        digitalWrite(PIN_HEATER, regulator.getResultTimer());  // отправляем на реле
+    }else{
+        digitalWrite(PIN_HEATER, LOW );
+    }       
+#endif  
   #endif
-
-  
-/*
-
-*/
-
 }
 
 
