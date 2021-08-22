@@ -34,8 +34,8 @@
 //Определяем, где работает программа: на Ардуине?, тогда true
 #define INARDUINO   true
 #define DEBUG       true
-#define USE_DS18B20 true
-#define USE_RELE    true
+#define USE_DS18B20 false
+#define USE_RELE    false
 #define USE_DISPLAY true
 #define USE_ENCODER true
 
@@ -53,8 +53,10 @@
 #if USE_DISPLAY
   #include <GyverTM1637.h>
 #endif
-  
+
+#if USE_ENCODER
 #include <GyverEncoder.h>
+#endif
 
 
  
@@ -75,16 +77,16 @@
   
 #if USE_DISPLAY
   //Дисплей
-  #define DISP_CLK 7
-  #define DISP_DIO 8
+  #define DISP_CLK 2
+  #define DISP_DIO 3
   GyverTM1637 disp(DISP_CLK, DISP_DIO);
 #endif
 
 #if USE_ENCODER
  //энкодер
- #define ENC_CLK 2
- #define ENC_DT  3
- #define ENC_SW  4
+ #define ENC_CLK 4
+ #define ENC_DT  5
+ #define ENC_SW  6
  Encoder enc1(ENC_CLK, ENC_DT, ENC_SW);  // для работы c кнопкой
 #endif 
   
@@ -280,7 +282,7 @@ void displayInit(){
   #endif  
   #if USE_DISPLAY
     #if DEBUG
-      Serial.println( "Инициализация дисплея\r\n" );
+      Serial.println( "Inicializaciya displeya\r\n" );
     #endif  
     #if INARDUINO
       disp.clear();
@@ -394,7 +396,7 @@ void encoderHandler(){
 
       if (enc1.isTurn()) {       // если был совершён поворот (индикатор поворота в любую сторону)
         #if DEBUG
-          Serial.print("encoder завершли крутить, значение=");Serial.println(encValue);  // выводим значение при повороте
+          Serial.print("encoder zavershili krutit, znachenie=");Serial.println(encValue);  // выводим значение при повороте
         #endif  
         setTargetTemp( encValue );
       }
@@ -472,7 +474,7 @@ void setup()
    
    #if DEBUG
      if( !tempSensIsPresent ){  
-       Serial.println("Термодатчик отсутствует, работа невозможна. ");
+       Serial.println("Termodatchik otsutstvuet, rabota nevozmojna. ");
      }  
     #endif  
 
