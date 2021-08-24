@@ -32,8 +32,8 @@
 
   
 //Определяем, где работает программа: на Ардуине?, тогда true
-#define INARDUINO   false
-#define DEBUG       true
+#define INARDUINO   true
+#define DEBUG       false
 #define USE_DS18B20 false
 #define USE_RELE    false
 #define USE_DISPLAY true
@@ -174,7 +174,7 @@ unsigned long curtimeoutUpdateTemper;
 #define SYSTEM_MODE_NORMAL 1
 #define SYSTEM_MODE_SETUP  2
 byte sytemMode = SYSTEM_MODE_NONE;
-unsigned long sytemModeTimeoutMax = 50000;
+unsigned long sytemModeTimeoutMax = 5000;
 unsigned long sytemModeTimeoutCur = 0;
 
 
@@ -285,7 +285,7 @@ float getTargetTemp(){
  */
 void setTemp(float value){
   #if DEBUG
-    Serial.print( "void setTemp(float  " );Serial.print( value ); Serial.print( ")" ); Serial.println( "\r\n" );
+    //Serial.print( "void setTemp(float  " );Serial.print( value ); Serial.print( ")" ); Serial.println( "\r\n" );
   #endif  
   tempValue    = value;
   relaySetCurrentValue( value );
@@ -296,7 +296,7 @@ void setTemp(float value){
  */
 float getTemp(){
   #if DEBUG
-    Serial.print( "float getTemp()\r\n" );
+    //Serial.print( "float getTemp()\r\n" );
   #endif  
   return( (tempSensIsPresent)?tempValue: TEMPVALUE_ERROR );
 }
@@ -308,7 +308,7 @@ float getTemp(){
  */
 void displayInit(){
   #if DEBUG
-    Serial.print( "void void displayInit()\r\n" );
+    Serial.print( "void displayInit()\r\n" );
   #endif  
   #if USE_DISPLAY
     #if DEBUG
@@ -317,8 +317,8 @@ void displayInit(){
     #if INARDUINO
       disp.clear();
       disp.brightness(7);  // яркость, 0 - 7 (минимум - максимум)
-      disp.clear();
-      disp.displayByte(_H, _E, _L, _L);
+     // disp.clear();
+      //disp.displayByte(_H, _E, _L, _L);
     #endif  
   #endif   
 }
@@ -333,7 +333,7 @@ float dispayValueOld = 0;
 void displayShow(){
   uint8_t Digits[] = {0x00,0x00,0x00,0x00};
   #if DEBUG
-    Serial.println( "void displayShow();" );
+    //Serial.println( "void displayShow();" );
   #endif  
   /*
    * В режиме настройки отображать значение от энкодера,
@@ -343,18 +343,21 @@ void displayShow(){
   else  dispayValue =  getTemp();
   
   #if DEBUG
-    Serial.print( "dispayValue=" );Serial.print( dispayValue );
-    Serial.print( "; dispayValueOld=" );Serial.print(dispayValueOld );
-    Serial.println( "" );
+   // Serial.print( "dispayValue=" );Serial.print( dispayValue );
+   // Serial.print( "; dispayValueOld=" );Serial.print(dispayValueOld );
+  //  Serial.println( "" );
   #endif    
   //даем команду модулю на перерисовку значения только тогда,
   //когда значение изменилось, иначе пусть продолжается
   //отображаться ранее записанное
   if( dispayValue != dispayValueOld ){
-    Digits[0] = (uint8_t)(dispayValue / 1000) % 10; // раскидываем 4-значное число на цифры
-    Digits[1] = (uint8_t)(dispayValue / 100) % 10;
-    Digits[2] = (uint8_t)(dispayValue / 10) % 10;
-    Digits[3] = (uint8_t)(dispayValue) % 10;
+    int v = (int)dispayValue;
+    Digits[0] = (uint8_t)(v / 1000) % 10; // раскидываем 4-значное число на цифры
+    Digits[1] = (uint8_t)(v / 100) % 10;
+    Digits[2] = (uint8_t)(v / 10) % 10;
+    Digits[3] = (uint8_t)(v) % 10;
+
+
     
     //лидирующие нули заменяем на пусто
     for(byte i=0; i<4; i++ ){
@@ -401,7 +404,7 @@ void endcoderInit(){
  */
 float endcoderGetValue(){
   #if DEBUG
-    Serial.print( "float endcoderGetValue() --> " ); Serial.println(encValue);
+   // Serial.print( "float endcoderGetValue() --> " ); Serial.println(encValue);
   #endif  
   return(encValue);  
 }
@@ -422,7 +425,7 @@ void endcoderSetValue(float value ){
  */
 void encoderHandler(){
   #if DEBUG
-    Serial.println( "void encoderHandler()\r\n" );
+    //Serial.println( "void encoderHandler()\r\n" );
   #endif  
   int encValueOld = endcoderGetValue();
 
@@ -463,11 +466,12 @@ void encoderHandler(){
  if( endcoderGetValue() != encValueOld ) displayShow();   
 }
 
+float tempValueOld = 0;
 
 void updateTemperature(){
     float tempValue = getTemp();
   #if DEBUG
-    Serial.println( "void updateTemperature()\r\n" );
+    //Serial.println( "void updateTemperature()\r\n" );
   #endif
       
   #if USE_DS18B20
@@ -503,6 +507,7 @@ void updateTemperature(){
     #endif  
     
   #else  
+  /*
       int sign = rand() % 10;
       int value = rand() % 5;
       if( sign > 4 ) value = -value;
@@ -514,9 +519,10 @@ void updateTemperature(){
       Serial.print("Virtual temperature: ");
       Serial.println(tempValue);
     #endif  
-    
-  #endif    
-  setTemp( tempValue );
+  */  
+  #endif   
+  if( tempValueOld != tempValue ) setTemp( tempValue );
+  tempValueOld = tempValue;
 }
 
 
@@ -574,9 +580,10 @@ void setup()
     Serial.begin(115200);
     Serial.println("Starting");
   #endif  
+    displayInit();
   initSystemMode();
   relayInit();
-  displayInit();
+
   endcoderInit();
   
   
