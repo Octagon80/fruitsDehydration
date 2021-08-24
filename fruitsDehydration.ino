@@ -32,7 +32,7 @@
 
   
 //Определяем, где работает программа: на Ардуине?, тогда true
-#define INARDUINO   true
+#define INARDUINO   false
 #define DEBUG       true
 #define USE_DS18B20 false
 #define USE_RELE    false
@@ -62,7 +62,7 @@
  
 #if USE_DS18B20
   //термодатчик DS18B20
-  #define PIN_T_SENSOR 0
+  #define PIN_T_SENSOR 7
   OneWire oneWire(PIN_T_SENSOR);
   DallasTemperature sensors(&oneWire);
   DeviceAddress tempDevAddress;
@@ -70,7 +70,7 @@
 
 
 #if USE_RELE
-  #define PIN_HEATER 6
+  #define PIN_HEATER 8
   //Работа с реле, управление нагревателем
   GyverRelay regulator(REVERSE);
 #endif
@@ -99,13 +99,18 @@
   #include <time.h>
   #include "Serial.h"
   #include "Arduino.h"
+  #define _empty 0
   ObjSerial Serial;
 
   
 #endif 
 
 //Значение темперутуры при выявленной ошибке работы с датчиком  
-#define TEMPVALUE_ERROR -999
+#define TEMPVALUE_ERROR      -999
+//Значение темперутуры при выявленной потери связи с датчиком температуры
+#define TEMPVALUE_NOCONNECT  -888
+//Занчение температуры при отсутсвии датчика или невозможности прочитать его внутренний адрес
+#define TEMPVALUE_NOTPRESENT -777
   
 /**
  * Значение текущей температуры
@@ -132,6 +137,11 @@ bool tempSensAddressPresent = false;
  * @type boolean false Если термодатчик отсутствует, не готов, дает ложные значения
  */
 bool readyByTempSensors = false;
+/**
+ * Готовность системе к работе по отсутствии режима настройки
+ * @type boolean false 
+ */
+bool readyBySetupMode = false;
 
 /**
  * готовность работы нагревателя
@@ -150,9 +160,29 @@ unsigned long maxTimeoutUpdateTemper = 500;
 unsigned long curtimeoutUpdateTemper;
 
 
-//предопределение
-float endcoderGetValue();
 
+/**
+ * Режимы работы системы
+ *  0 - неопределенное состояние
+ *  1 - режим управления температурой с отображением текущей температуры
+ *  2 - режим настройки температуры
+ * режим 1 - по умолчанию, в этот режим система будет переключаться
+ * автоматически после тайаута. Т.е. выбор режима более 1,
+ * вклчается таймаут, отсчитывается, и режим переключается в 1
+ */
+#define SYSTEM_MODE_NONE   0
+#define SYSTEM_MODE_NORMAL 1
+#define SYSTEM_MODE_SETUP  2
+byte sytemMode = SYSTEM_MODE_NONE;
+unsigned long sytemModeTimeoutMax = 50000;
+unsigned long sytemModeTimeoutCur = 0;
+
+
+//предопределения
+float endcoderGetValue();
+float getTemp();
+byte getSystemMode();
+void setSystemMode( byte value );
 
 /**
  * Обновить готовность работы системы по термодатчику
@@ -165,7 +195,7 @@ void updateAllowedSystem(){
   readyByTempSensors = tempSensIsPresent && tempSensAddressPresent && getTemp()>5 && getTemp()<70 ;
   
   //готовность (разрешение) к включению нагревателя
-  readyHeater = readyByTempSensors;
+  readyHeater = readyByTempSensors && readyBySetupMode;
 }
 
 void relayInit(){
@@ -300,18 +330,23 @@ float dispayValueOld = 0;
  * Отобразить на экране значение температуры или настройки
  * @param bool   setupMode true-отображение значение настройки, иначе - температуры
  */
-void displayShow(bool setupMode ){
+void displayShow(){
   uint8_t Digits[] = {0x00,0x00,0x00,0x00};
   #if DEBUG
-    Serial.print( "void displayShow(bool " );Serial.print( setupMode ); Serial.print( ")" ); Serial.println( "\r\n" );
+    Serial.println( "void displayShow();" );
   #endif  
   /*
    * В режиме настройки отображать значение от энкодера,
    * а в обычном режиме - значение темпераутры
   */
-  if( setupMode ) dispayValue =  endcoderGetValue();
+  if( getSystemMode() == SYSTEM_MODE_SETUP ) dispayValue =  endcoderGetValue();
   else  dispayValue =  getTemp();
   
+  #if DEBUG
+    Serial.print( "dispayValue=" );Serial.print( dispayValue );
+    Serial.print( "; dispayValueOld=" );Serial.print(dispayValueOld );
+    Serial.println( "" );
+  #endif    
   //даем команду модулю на перерисовку значения только тогда,
   //когда значение изменилось, иначе пусть продолжается
   //отображаться ранее записанное
@@ -332,13 +367,15 @@ void displayShow(bool setupMode ){
         disp.clear();
         //При отсутствии готовности датчика температуре и режима отображения температуры
         //показать код ошибки
-        if( !readyByTempSensors && !setupMode ) disp.displayByte( _E,_r,_r, _empty );
+        if( !readyByTempSensors && getSystemMode() != SYSTEM_MODE_SETUP ) disp.displayByte( _N,_o,_empty, _F );
         else disp.displayByte( Digits );
        #endif  
-    #endif  
+    #endif 
+        
     #if DEBUG
       Serial.print( "display: " );Serial.print(  Digits[0] ); Serial.print(  Digits[1] );Serial.print(  Digits[2] );Serial.print(  Digits[3] );Serial.println( "\r\n" );
     #endif  
+
     dispayValueOld = dispayValue;
   }
   
@@ -369,6 +406,16 @@ float endcoderGetValue(){
   return(encValue);  
 }
 
+/*
+ * Установить текущее значение настраиваемой темпераутры
+ */
+void endcoderSetValue(float value ){
+  #if DEBUG
+    Serial.print( "void endcoderSetValue( value ) --> " ); Serial.println(value);
+  #endif  
+  encValue = value;  
+}
+
 
 /*
  * Обработчик энкодера, который обрабатывает события железяки
@@ -377,39 +424,48 @@ void encoderHandler(){
   #if DEBUG
     Serial.println( "void encoderHandler()\r\n" );
   #endif  
-  int encValueOld = encValue;
+  int encValueOld = endcoderGetValue();
 
   #if USE_ENCODER
     #if INARDUINO
       enc1.tick();
 
-      if (enc1.isRight()) encValue++;       // если был поворот направо, увеличиваем на 1
-      if (enc1.isLeft()) encValue--;      // если был поворот налево, уменьшаем на 1
+      if (enc1.isRight()) endcoderSetValue( endcoderGetValue() + 1 ) ;       // если был поворот направо, увеличиваем на 1
+      if (enc1.isLeft())  endcoderSetValue( endcoderGetValue() - 1 ) ;      // если был поворот налево, уменьшаем на 1
   
-      if (enc1.isRightH()) encValue += 5;   // если было удержание + поворот направо, увеличиваем на 5
-      if (enc1.isLeftH()) encValue -= 5;  // если было удержание + поворот налево, уменьшаем на 5  
+      if (enc1.isRightH()) endcoderSetValue( endcoderGetValue() + 5 ) ;   // если было удержание + поворот направо, увеличиваем на 5
+      if (enc1.isLeftH()) endcoderSetValue( endcoderGetValue() - 5 );  // если было удержание + поворот налево, уменьшаем на 5  
 
 
        //ограничение значений разумными пределами
-       if( encValue<15) encValue = 15;
-       if( encValue>70) encValue = 70;
+       if( endcoderGetValue()<15) endcoderSetValue( 15 );
+       if( endcoderGetValue()>70) endcoderSetValue( 70 );
 
       if (enc1.isTurn()) {       // если был совершён поворот (индикатор поворота в любую сторону)
+        setSystemMode( SYSTEM_MODE_SETUP );
         #if DEBUG
-          Serial.print("encoder zavershili krutit, znachenie=");Serial.println(encValue);  // выводим значение при повороте
+          Serial.print("encoder zavershili krutit, znachenie=");Serial.println(endcoderGetValue());  // выводим значение при повороте
         #endif  
-        setTargetTemp( encValue );
+        setTargetTemp( endcoderGetValue() );
       }
     #else  
-     setTargetTemp( 30 );
+     //требуется иммитация энкодера 
+      int sign = rand() % 10;
+      int value = rand() % 70;
+      if( sign > 8 ){
+          setTargetTemp( value );
+          setSystemMode( SYSTEM_MODE_SETUP );
+          endcoderSetValue( value );
+      }    
     #endif  
   #endif  
 
- if( encValue != encValueOld ) displayShow( true );   
+ if( endcoderGetValue() != encValueOld ) displayShow();   
 }
 
 
 void updateTemperature(){
+    float tempValue = getTemp();
   #if DEBUG
     Serial.println( "void updateTemperature()\r\n" );
   #endif
@@ -429,8 +485,12 @@ void updateTemperature(){
          //иначе запомнить ошибочное значение температуры
          //на которое контроль готовности системы к работе
          //отреагирует как на запрет работы нагревателя
-         tempValue = TEMPVALUE_ERROR;
+         tempValue = TEMPVALUE_NOCONNECT;
        }
+     }else{
+      //Датчие температуры отсутсвует или неправильно подключен
+      //значние будет таким, что управление нагревателем д. отключиться из-за ошибочной температуры
+       tempValue = TEMPVALUE_NOTPRESENT;
      } 
         
     #else  
@@ -443,16 +503,66 @@ void updateTemperature(){
     #endif  
     
   #else  
-  
-    tempValue = rand() % 70;
+      int sign = rand() % 10;
+      int value = rand() % 5;
+      if( sign > 4 ) value = -value;
+      if( tempValue < 0 || tempValue > 70 ) tempValue = 20;
+      tempValue = tempValue + value;
+
+    
     #if DEBUG
       Serial.print("Virtual temperature: ");
       Serial.println(tempValue);
     #endif  
     
   #endif    
-
+  setTemp( tempValue );
 }
+
+
+
+void initSystemMode(){
+  setSystemMode( SYSTEM_MODE_NORMAL );
+}
+
+
+/**
+ * Получить текущий режим системы
+ */
+byte getSystemMode(){
+ return( sytemMode );
+}  
+
+
+/**
+ * Установить текущий режим системы.
+ * Сброс таймера австосмены режима (при бездействии пользователя)
+ */
+void setSystemMode( byte value ){
+ sytemMode = value;
+ sytemModeTimeoutCur = millis();
+ if( sytemMode > SYSTEM_MODE_NORMAL ) readyBySetupMode = false;
+ else readyBySetupMode = true;
+ 
+}  
+
+
+
+/**
+ * Обработчик состояние системы.
+ * Вызывается циклично
+ */
+void systemModeHandler(){
+  if( sytemMode > SYSTEM_MODE_NORMAL ){
+    //таймаут перевода режима системы в обычный с измерением темперетура
+      printf("%d - %d = %d \r\n", millis(),sytemModeTimeoutCur, (millis() - sytemModeTimeoutCur)  );
+    if (millis() - sytemModeTimeoutCur > sytemModeTimeoutMax) {
+      setSystemMode( SYSTEM_MODE_NORMAL ); 
+      sytemModeTimeoutCur = millis();
+    }    
+  }
+}  
+
 
 
 /**************************************************
@@ -464,9 +574,11 @@ void setup()
     Serial.begin(115200);
     Serial.println("Starting");
   #endif  
+  initSystemMode();
   relayInit();
   displayInit();
   endcoderInit();
+  
   
   #if USE_DS18B20
    sensors.begin();
@@ -478,16 +590,23 @@ void setup()
      }  
     #endif  
 
-  tempSensAddressPresent = false; 
+  
   if (tempSensIsPresent && sensors.getAddress(tempDevAddress, 0)){ 
      tempSensAddressPresent = true;
   }else{
+    tempSensAddressPresent = false; 
    #if DEBUG
       Serial.println("Unable to find address for Device 0"); 
     #endif       
   }
-      
+  #else      
+   tempSensIsPresent = true;
+   tempSensAddressPresent = true;
+
   #endif
+
+
+   
 
   curtimeoutUpdateTemper = millis();
 
@@ -499,7 +618,7 @@ void setup()
  */
 void loop(){
   updateAllowedSystem();
-  displayShow( false );
+  displayShow();
   encoderHandler();
   
   //измерять температуру будем нечасто, как следствие нечастая коррекция значения для управления реле
@@ -522,6 +641,10 @@ void loop(){
     }       
 #endif  
   #endif
+
+      systemModeHandler();
+      
+
 }
 
 
