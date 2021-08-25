@@ -331,7 +331,7 @@ float dispayValueOld = 0;
  * @param bool   setupMode true-отображение значение настройки, иначе - температуры
  */
 void displayShow(){
-  uint8_t Digits[] = {0x00,0x00,0x00,0x00};
+
   #if DEBUG
     //Serial.println( "void displayShow();" );
   #endif  
@@ -350,33 +350,22 @@ void displayShow(){
   //даем команду модулю на перерисовку значения только тогда,
   //когда значение изменилось, иначе пусть продолжается
   //отображаться ранее записанное
-  if( dispayValue != dispayValueOld ){ //!!! Обратить внимание! Мы сравниваем float, они м.б. не равны где нибудь в 8 после запятой знаке, а по факту они равны
-    int v = (int)dispayValue;
-    Digits[0] = (v / 1000) % 10; // раскидываем 4-значное число на цифры
-    Digits[1] = (v / 100) % 10;
-    Digits[2] = (v / 10) % 10;
-    Digits[3] = (v) % 10;
-
-
+  if( (int)dispayValue != (int)dispayValueOld ){ //!!! Обратить внимание! Мы сравниваем float, они м.б. не равны где нибудь в 8 после запятой знаке, а по факту они равны
     
-    //лидирующие нули заменяем на пусто
-    for(byte i=0; i<4; i++ ){
-        if( Digits[i] == 0 ) Digits[i] = _empty;
-        //до первого ненулевого значения
-        else break;
-    }
+   //замечание, индикатор не может отображать менее -999 и более 9999
+      
     #if USE_DISPLAY
       #if INARDUINO
-        disp.clear();
+        //скорее всего это лишнее disp.clear();
         //При отсутствии готовности датчика температуре и режима отображения температуры
         //показать код ошибки
         if( !readyByTempSensors && getSystemMode() != SYSTEM_MODE_SETUP ) disp.displayByte( _N,_o,_empty, _F );
-        else disp.displayByte( Digits );
+        else disp.displayInt( (int)dispayValue);
        #endif  
     #endif 
         
     #if DEBUG
-      Serial.print( "display: " );Serial.print(  Digits[0] ); Serial.print(  Digits[1] );Serial.print(  Digits[2] );Serial.print(  Digits[3] );Serial.println( "\r\n" );
+      Serial.print( "display: " );Serial.print(  dispayValue );Serial.println( "\r\n" );
     #endif  
 
     dispayValueOld = dispayValue;
