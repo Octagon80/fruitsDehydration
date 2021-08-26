@@ -14,15 +14,17 @@
  * https://alexgyver.ru/encoder/
  * https://github.com/GyverLibs/GyverEncoder/archive/refs/heads/main.zip
  * 
- * Через меню IDE "Менеджер библиотек" найти и установить библотеки
- *   - OneWire
- *   - DallasTemperature
+ * Библиотек DS18B20 от Gyver
+ * https://github.com/GyverLibs/microDS18B20/archive/refs/heads/main.zip
+ * Эта библотек позволяет подключать несколько датчиков на РАЗНЫЕ пины.
+ * Что дает плюс при замене вышедшего датчика. Просто заменил и не нужно узнавать его адрес
  * 
  * Датчик температуры DS18B20
- * Подключение к PIN6
+ * Подключение к PIN7    контроль температуры потока воздуха от нагревателя
+ * Возможно добавлю датчики для доп. контроля потока воздуха. Лучше перестраховаться с конролем, чем огонь
  * 
  * Твердотельное реле SSR-10 D
- * Подключение к PIN5
+ * Подключение к PIN8
  * 
  * Твердотельное реле управляет нагревателем.
  * Вентилятор должен вращаться всегда
@@ -34,16 +36,16 @@
 //Определяем, где работает программа: на Ардуине?, тогда true
 #define INARDUINO   true
 #define DEBUG       false
-#define USE_DS18B20 false
-#define USE_RELE    false
+#define USE_DS18B20 true
+#define USE_RELE    true
 #define USE_DISPLAY true
 #define USE_ENCODER true
 
 #if INARDUINO
   
 #if USE_DS18B20
-  #include <OneWire.h>
-  #include <DallasTemperature.h>
+  ///#include <OneWire.h>
+  #include <microDS18B20.h>
 #endif
 
 #if USE_RELE
@@ -62,10 +64,15 @@
  
 #if USE_DS18B20
   //термодатчик DS18B20
-  #define PIN_T_SENSOR 7
-  OneWire oneWire(PIN_T_SENSOR);
-  DallasTemperature sensors(&oneWire);
-  DeviceAddress tempDevAddress;
+  #define PIN_T_SENSOR1  7
+  #define PIN_T_SENSOR2  8
+
+  #define DS_TEMP_TYPE int       // целочисленный тип данных для температуры
+  #define DS_CHECK_CRC true     // включить проверку подлинности принятых данных
+  #define DS_CRC_USE_TABLE true // использовать готовую таблицу контрольной суммы - значительно быстрее, +256 байт flash
+
+  MicroDS18B20<PIN_T_SENSOR1> sensor1;
+  //MicroDS18B20<PIN_T_SENSOR2> sensor2;
 #endif  
 
 
@@ -108,9 +115,9 @@
 //Значение темперутуры при выявленной ошибке работы с датчиком  
 #define TEMPVALUE_ERROR      -999
 //Значение темперутуры при выявленной потери связи с датчиком температуры
-#define TEMPVALUE_NOCONNECT  -888
+//#define TEMPVALUE_NOCONNECT  -888
 //Занчение температуры при отсутсвии датчика или невозможности прочитать его внутренний адрес
-#define TEMPVALUE_NOTPRESENT -777
+//#define TEMPVALUE_NOTPRESENT -777
   
 /**
  * Значение текущей температуры
@@ -124,14 +131,8 @@ float tempValue       = 20;
  * @type float
  */  
 float tempTargetValue = 20;
-/**
- * Наличие термодатчика
- */
-bool tempSensIsPresent = false;
-/**
- * Адрес датчика температуры успешно считан
- */
-bool tempSensAddressPresent = false;
+
+
 /**
  * Готовность системе к работе по термодатчику.
  * @type boolean false Если термодатчик отсутствует, не готов, дает ложные значения
@@ -192,7 +193,7 @@ void setSystemMode( byte value );
  */
 void updateAllowedSystem(){
   //готовность термодатчика
-  readyByTempSensors = tempSensIsPresent && tempSensAddressPresent && getTemp()>5 && getTemp()<70 ;
+  readyByTempSensors = getTemp()>5 && getTemp()<70 ;
   
   //готовность (разрешение) к включению нагревателя
   readyHeater = readyByTempSensors && readyBySetupMode;
@@ -298,7 +299,7 @@ float getTemp(){
   #if DEBUG
     //Serial.print( "float getTemp()\r\n" );
   #endif  
-  return( (tempSensIsPresent)?tempValue: TEMPVALUE_ERROR );
+  return( tempValue );
 }
 
 
@@ -464,52 +465,31 @@ void updateTemperature(){
   #endif
       
   #if USE_DS18B20
-  
-    #if INARDUINO
-      //Если датчик найден и ранее был получен адрес датчика...
-     if( tempSensIsPresent && tempSensAddressPresent ){
-        //если датчик по-прежнему подключен
-       if( sensors.isConnected( tempDevAddress ) ){
-           //sensors.requestTemperatures();
-           ////sensors.requestTemperaturesByAddress( tempDevAddress );
-           //tempValue = sensors.getTempCByIndex(0);
-           tempValue = sensors.getTempC( tempDevAddress ); 
-       }else{
-         //иначе запомнить ошибочное значение температуры
-         //на которое контроль готовности системы к работе
-         //отреагирует как на запрет работы нагревателя
-         tempValue = TEMPVALUE_NOCONNECT;
-       }
-     }else{
-      //Датчие температуры отсутсвует или неправильно подключен
-      //значние будет таким, что управление нагревателем д. отключиться из-за ошибочной температуры
-       tempValue = TEMPVALUE_NOTPRESENT;
-     } 
-        
-    #else  
-      tempValue = rand() % 70;
-    #endif
+   // запрос температуры  
+   sensor1.requestTemp();
+   //sensor2.requestTemp();
+   // вместо delay используй таймер на millis()
+  delay(1000);  
+ // tempValue = sensor1.getTemp(); 
+//  tempValue2 = sensor2.getTemp(); 
+ 
+   // прпочитали сырое значение
+  uint16_t rawVal = sensor1.getRaw();
+  if( rawVal == 0){
+  //ошибка
+   tempValue = TEMPVALUE_ERROR;
+  }else{
+  tempValue = DS_rawToFloat(rawVal);
+  }
     
     #if DEBUG
       Serial.print("Real temperature: ");
       Serial.println(tempValue);
     #endif  
-    
-  #else  
-  /*
-      int sign = rand() % 10;
-      int value = rand() % 5;
-      if( sign > 4 ) value = -value;
-      if( tempValue < 0 || tempValue > 70 ) tempValue = 20;
-      tempValue = tempValue + value;
-
-    
-    #if DEBUG
-      Serial.print("Virtual temperature: ");
-      Serial.println(tempValue);
-    #endif  
-  */  
-  #endif   
+ 
+  #endif 
+ //обновляем температуру (и корректируем систему управления) только при фактическом изменении
+ //Внимание! сравниваются float'ы   float 1 не всегда равен float 1, т.к. где нибудь в 8-м знаке будет 1
   if( tempValueOld != tempValue ) setTemp( tempValue );
   tempValueOld = tempValue;
 }
@@ -577,28 +557,8 @@ void setup()
   
   
   #if USE_DS18B20
-   sensors.begin();
-   tempSensIsPresent = sensors.getDS18Count() == 1; //sensors.getDeviceCount == 1;
-   
-   #if DEBUG
-     if( !tempSensIsPresent ){  
-       Serial.println("Termodatchik otsutstvuet, rabota nevozmojna. ");
-     }  
-    #endif  
-
-  
-  if (tempSensIsPresent && sensors.getAddress(tempDevAddress, 0)){ 
-     tempSensAddressPresent = true;
-  }else{
-    tempSensAddressPresent = false; 
-   #if DEBUG
-      Serial.println("Unable to find address for Device 0"); 
-    #endif       
-  }
-  #else      
-   tempSensIsPresent = true;
-   tempSensAddressPresent = true;
-
+   sensor1.setResolution(12);  // разрешение [9-12] бит. По умолч. 12 
+   //sensor2.setResolution(12);  // разрешение [9-12] бит. По умолч. 12 
   #endif
 
 
