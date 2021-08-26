@@ -1,3 +1,4 @@
+
 /**
  * Автоматизация сушилки для фруктов и овощей Supra-DFS-201
  * 
@@ -35,7 +36,15 @@
   
 //Определяем, где работает программа: на Ардуине?, тогда true
 #define INARDUINO   true
-#define DEBUG       false
+/**
+ * Уровень отладочной информации
+ * 0 - нет ничего
+ * 1 - только ошибки
+ * 2 - плюс предупреждения, плюс отчет работы системы
+ * 3 - плюс простая отладочная информация
+ * 4 - плюс подробдная отладочная инфорация
+ */
+#define DEBUG       1
 #define USE_DS18B20 true
 #define USE_RELE    true
 #define USE_DISPLAY true
@@ -67,8 +76,8 @@
   #define PIN_T_SENSOR1  7
   #define PIN_T_SENSOR2  8
 
-  #define DS_TEMP_TYPE int       // целочисленный тип данных для температуры
-  #define DS_CHECK_CRC true     // включить проверку подлинности принятых данных
+  #define DS_TEMP_TYPE     int  // целочисленный тип данных для температуры
+  #define DS_CHECK_CRC     true // включить проверку подлинности принятых данных
   #define DS_CRC_USE_TABLE true // использовать готовую таблицу контрольной суммы - значительно быстрее, +256 байт flash
 
   MicroDS18B20<PIN_T_SENSOR1> sensor1;
@@ -200,11 +209,11 @@ void updateAllowedSystem(){
 }
 
 void relayInit(){
-  #if DEBUG
+  #if DEBUG >= 3
     Serial.print( "void relayInit()\r\n" );
   #endif  
   #if USE_RELE
-    #if DEBUG
+    #if DEBUG >= 3
       Serial.println( "Инициализация GyverRelay\r\n" );
     #endif  
     #if INARDUINO
@@ -226,11 +235,11 @@ void relayInit(){
  * @param float value текущее значение управлемой системы
  */
 void relaySetCurrentValue(float value ){
-  #if DEBUG
+  #if DEBUG >= 3
     Serial.print( "void relaySetCurrentValue(float " );Serial.print( value ); Serial.print( ")" ); Serial.println( "\r\n" );
   #endif  
   #if USE_RELE
-    #if DEBUG
+    #if DEBUG >= 3
       Serial.print( "GyverRelay input=" );Serial.print( value ); Serial.println( "\r\n" );
     #endif  
     #if INARDUINO
@@ -240,11 +249,11 @@ void relaySetCurrentValue(float value ){
 }
 
 void relaySetTargetValue( float value ){
-  #if DEBUG
+  #if DEBUG >= 3
     Serial.print( "void relaySetTargetValue( float  " );Serial.print( value ); Serial.print( ")" ); Serial.println( "\r\n" );
   #endif  
   #if USE_RELE
-    #if DEBUG
+    #if DEBUG >= 3
       Serial.print( "GyverRelay setpoint=" );Serial.print( value ); Serial.println( "\r\n" );
     #endif
     #if INARDUINO  
@@ -261,7 +270,7 @@ void relaySetTargetValue( float value ){
  * @param float value значение
  */
 void setTargetTemp(float value){
-  #if DEBUG
+  #if DEBUG >= 3
     Serial.print( "void setTargetTemp(float " );Serial.print( value ); Serial.print( ")" ); Serial.println( "\r\n" );
   #endif  
   tempTargetValue    = value;
@@ -273,7 +282,7 @@ void setTargetTemp(float value){
  * стремитья система управления
  */
 float getTargetTemp(){
-  #if DEBUG
+  #if DEBUG >= 3
     Serial.print( "float getTargetTemp()\r\n" );
   #endif  
   return( tempTargetValue );
@@ -285,8 +294,8 @@ float getTargetTemp(){
  * @param float value значение
  */
 void setTemp(float value){
-  #if DEBUG
-    //Serial.print( "void setTemp(float  " );Serial.print( value ); Serial.print( ")" ); Serial.println( "\r\n" );
+  #if DEBUG >= 4
+    Serial.print( "void setTemp(float  " );Serial.print( value ); Serial.print( ")" ); Serial.println( "\r\n" );
   #endif  
   tempValue    = value;
   relaySetCurrentValue( value );
@@ -296,8 +305,8 @@ void setTemp(float value){
  * Получить текущую температуру
  */
 float getTemp(){
-  #if DEBUG
-    //Serial.print( "float getTemp()\r\n" );
+  #if DEBUG >= 4
+    Serial.print( "float getTemp()\r\n" );
   #endif  
   return( tempValue );
 }
@@ -308,18 +317,16 @@ float getTemp(){
  * текущей температцуры и настройки температуры
  */
 void displayInit(){
-  #if DEBUG
+  #if DEBUG >= 3
     Serial.print( "void displayInit()\r\n" );
   #endif  
   #if USE_DISPLAY
-    #if DEBUG
+    #if DEBUG >= 3
       Serial.println( "Inicializaciya displeya\r\n" );
     #endif  
     #if INARDUINO
       disp.clear();
       disp.brightness(7);  // яркость, 0 - 7 (минимум - максимум)
-     // disp.clear();
-      //disp.displayByte(_H, _E, _L, _L);
     #endif  
   #endif   
 }
@@ -333,8 +340,8 @@ float dispayValueOld = 0;
  */
 void displayShow(){
 
-  #if DEBUG
-    //Serial.println( "void displayShow();" );
+  #if DEBUG >= 4
+    Serial.println( "void displayShow();" );
   #endif  
   /*
    * В режиме настройки отображать значение от энкодера,
@@ -343,10 +350,10 @@ void displayShow(){
   if( getSystemMode() == SYSTEM_MODE_SETUP ) dispayValue =  endcoderGetValue();
   else  dispayValue =  getTemp();
   
-  #if DEBUG
-   // Serial.print( "dispayValue=" );Serial.print( dispayValue );
-   // Serial.print( "; dispayValueOld=" );Serial.print(dispayValueOld );
-  //  Serial.println( "" );
+  #if DEBUG >= 4
+    Serial.print( "dispayValue=" );Serial.print( dispayValue );
+    Serial.print( "; dispayValueOld=" );Serial.print(dispayValueOld );
+    Serial.println( "" );
   #endif    
   //даем команду модулю на перерисовку значения только тогда,
   //когда значение изменилось, иначе пусть продолжается
@@ -365,7 +372,7 @@ void displayShow(){
        #endif  
     #endif 
         
-    #if DEBUG
+    #if DEBUG >= 3
       Serial.print( "display: " );Serial.print(  dispayValue );Serial.println( "\r\n" );
     #endif  
 
@@ -379,7 +386,7 @@ void displayShow(){
  * Инициализация энкодера для настройки температуры
  */
 void endcoderInit(){
-  #if DEBUG
+  #if DEBUG >= 3
     Serial.println( "void endcoderInit()\r\n" );
   #endif  
   #if USE_ENCODER
@@ -393,8 +400,8 @@ void endcoderInit(){
  * Получить текущее значение настраиваемой темпераутры
  */
 float endcoderGetValue(){
-  #if DEBUG
-   // Serial.print( "float endcoderGetValue() --> " ); Serial.println(encValue);
+  #if DEBUG >= 4
+    Serial.print( "float endcoderGetValue() --> " ); Serial.println(encValue);
   #endif  
   return(encValue);  
 }
@@ -403,7 +410,7 @@ float endcoderGetValue(){
  * Установить текущее значение настраиваемой темпераутры
  */
 void endcoderSetValue(float value ){
-  #if DEBUG
+  #if DEBUG >= 3
     Serial.print( "void endcoderSetValue( value ) --> " ); Serial.println(value);
   #endif  
   encValue = value;  
@@ -414,8 +421,8 @@ void endcoderSetValue(float value ){
  * Обработчик энкодера, который обрабатывает события железяки
  */
 void encoderHandler(){
-  #if DEBUG
-    //Serial.println( "void encoderHandler()\r\n" );
+  #if DEBUG >= 4
+    Serial.println( "void encoderHandler()\r\n" );
   #endif  
   int encValueOld = endcoderGetValue();
 
@@ -436,7 +443,7 @@ void encoderHandler(){
 
       if (enc1.isTurn()) {       // если был совершён поворот (индикатор поворота в любую сторону)
         setSystemMode( SYSTEM_MODE_SETUP );
-        #if DEBUG
+        #if DEBUG >= 3
           Serial.print("encoder zavershili krutit, znachenie=");Serial.println(endcoderGetValue());  // выводим значение при повороте
         #endif  
         setTargetTemp( endcoderGetValue() );
@@ -460,8 +467,8 @@ float tempValueOld = 0;
 
 void updateTemperature(){
     float tempValue = getTemp();
-  #if DEBUG
-    //Serial.println( "void updateTemperature()\r\n" );
+  #if DEBUG >= 4
+    Serial.println( "void updateTemperature()\r\n" );
   #endif
       
   #if USE_DS18B20
@@ -482,7 +489,7 @@ void updateTemperature(){
   tempValue = DS_rawToFloat(rawVal);
   }
     
-    #if DEBUG
+    #if DEBUG >= 4
       Serial.print("Real temperature: ");
       Serial.println(tempValue);
     #endif  
@@ -545,8 +552,10 @@ void systemModeHandler(){
  */
 void setup()
 {
-  #if DEBUG
+  #if DEBUG > 0
     Serial.begin(115200);
+  #endif  
+  #if DEBUG >= 3
     Serial.println("Starting");
   #endif  
     displayInit();
@@ -591,7 +600,7 @@ void loop(){
 #if USE_RELE
    //управление нагревателем по таймеру, если есть разрешение
     if( readyHeater){
-        digitalWrite(PIN_HEATER, regulator.getResultTimer());  // отправляем на реле
+        digitalWrite(PIN_HEATER, regulator.getResultTimer() );  // отправляем на реле
     }else{
         digitalWrite(PIN_HEATER, LOW );
     }       
@@ -599,7 +608,19 @@ void loop(){
   #endif
 
       systemModeHandler();
-      
+
+
+  //Отобразить отчет работы системы для внешней отладки регулировки управления нагревателем
+  #if DEBUG >= 1
+    Serial.print( millis() );
+    Serial.print( ";" );
+    Serial.print( getTemp() );
+    Serial.print( ";" );
+    Serial.print( getTargetTemp() );    
+    Serial.print( ";" );
+    Serial.print( regulator.getResultTimer() );    
+    Serial.println( ";" );
+  #endif       
 
 }
 
