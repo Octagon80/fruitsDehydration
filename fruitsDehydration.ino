@@ -16,7 +16,8 @@
  * https://github.com/GyverLibs/GyverEncoder/archive/refs/heads/main.zip
  * 
  * Библиотек DS18B20 от Gyver
- * https://github.com/GyverLibs/microDS18B20/archive/refs/heads/main.zip
+ * https://github.com/GyverLibs/microDS
+ * 18B20/archive/refs/heads/main.zip
  * Эта библотек позволяет подключать несколько датчиков на РАЗНЫЕ пины.
  * Что дает плюс при замене вышедшего датчика. Просто заменил и не нужно узнавать его адрес
  * 
@@ -74,7 +75,7 @@
 #if USE_DS18B20
   //термодатчик DS18B20
   #define PIN_T_SENSOR1  7
-  #define PIN_T_SENSOR2  8
+  #define PIN_T_SENSOR2  9
 
   #define DS_TEMP_TYPE     int  // целочисленный тип данных для температуры
   #define DS_CHECK_CRC     true // включить проверку подлинности принятых данных
@@ -368,7 +369,15 @@ void displayShow(){
         //При отсутствии готовности датчика температуре и режима отображения температуры
         //показать код ошибки
         if( !readyByTempSensors && getSystemMode() != SYSTEM_MODE_SETUP ) disp.displayByte( _N,_o,_empty, _F );
-        else disp.displayInt( (int)dispayValue);
+        else {
+          //disp.displayInt( (int)dispayValue);
+          //Надо обозначить режим установки, чтобы были визуальные различия
+          //по-простому, хоть и нелогично
+          if( getSystemMode() == SYSTEM_MODE_SETUP ) disp.point(1);
+          else disp.point(0);
+          
+          disp.displayInt( (int)dispayValue);  
+        }
        #endif  
     #endif 
         
@@ -470,7 +479,9 @@ void updateTemperature(){
   #if DEBUG >= 4
     Serial.println( "void updateTemperature()\r\n" );
   #endif
-      
+
+  //Замеры темперауры производить только в обычно режиме (не в режиме настройки системы)
+  if( getSystemMode() == SYSTEM_MODE_NORMAL ){   
   #if USE_DS18B20
    // запрос температуры  
    sensor1.requestTemp();
@@ -495,10 +506,25 @@ void updateTemperature(){
     #endif  
  
   #endif 
+  } 
  //обновляем температуру (и корректируем систему управления) только при фактическом изменении
  //Внимание! сравниваются float'ы   float 1 не всегда равен float 1, т.к. где нибудь в 8-м знаке будет 1
   if( tempValueOld != tempValue ) setTemp( tempValue );
   tempValueOld = tempValue;
+
+
+   //Отобразить отчет работы системы для внешней отладки регулировки управления нагревателем
+  #if DEBUG >= 1
+    Serial.print( millis() );
+    Serial.print( ";" );
+    Serial.print( getTemp() );
+    Serial.print( ";" );
+    Serial.print( getTargetTemp() );    
+    Serial.print( ";" );
+    Serial.print( regulator.getResultTimer() );    
+    Serial.println( ";" );
+  #endif       
+
 }
 
 
@@ -597,6 +623,7 @@ void loop(){
       digitalWrite(PIN_HEATER, regulator.getResult());  // отправляем на реле (ОС работает по своему таймеру)
     #endif  
 
+
 #if USE_RELE
    //управление нагревателем по таймеру, если есть разрешение
     if( readyHeater){
@@ -610,18 +637,7 @@ void loop(){
       systemModeHandler();
 
 
-  //Отобразить отчет работы системы для внешней отладки регулировки управления нагревателем
-  #if DEBUG >= 1
-    Serial.print( millis() );
-    Serial.print( ";" );
-    Serial.print( getTemp() );
-    Serial.print( ";" );
-    Serial.print( getTargetTemp() );    
-    Serial.print( ";" );
-    Serial.print( regulator.getResultTimer() );    
-    Serial.println( ";" );
-  #endif       
-
+ 
 }
 
 
