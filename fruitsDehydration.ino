@@ -140,7 +140,7 @@ float tempValue       = 20;
  * Использовать для получение и установки getTargetTemp()/setTargetTemp()
  * @type float
  */  
-float tempTargetValue = 20;
+float tempTargetValue = 40;
 
 
 /**
