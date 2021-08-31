@@ -221,9 +221,9 @@ void relayInit(){
       pinMode(PIN_HEATER, OUTPUT);             // пин реле
       digitalWrite(PIN_HEATER, LOW);
       regulator.setpoint    = getTargetTemp();// установка температуры, к которой стремиться система управления
-      regulator.hysteresis  = 5;              // ширина гистерезиса
-      regulator.k           = 0.5;            // коэффициент обратной связи (подбирается по факту)
-      //regulator.dT        = 500;            // установить время итерации для getResultTimer
+      regulator.hysteresis  = 1;//5;              // ширина гистерезиса
+      regulator.k           = 1;//0.5;            // коэффициент обратной связи (подбирается по факту)
+      //regulator.dT        = 1000;            // установить время итерации для getResultTimer
     #endif  
  #else
     //Serial.println( "Игнорируем GyverRelay\r\n" );
@@ -619,9 +619,6 @@ void loop(){
   }
 
   #if INARDUINO
-    #if USE_RELE
-      digitalWrite(PIN_HEATER, regulator.getResult());  // отправляем на реле (ОС работает по своему таймеру)
-    #endif  
 
 
 #if USE_RELE
