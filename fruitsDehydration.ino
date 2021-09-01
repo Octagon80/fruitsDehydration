@@ -45,7 +45,7 @@
  * 3 - плюс простая отладочная информация
  * 4 - плюс подробдная отладочная инфорация
  */
-#define DEBUG       1
+#define DEBUG       0
 #define USE_DS18B20 true
 #define USE_RELE    true
 #define USE_DISPLAY true
