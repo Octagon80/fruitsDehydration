@@ -12,12 +12,12 @@
 - :black_square_button: Добавить звукового сигнализатор.
 - :black_square_button: Ошибка. Инициализированное значение "температуры поддержания" не устанавливается в инициализированной значение энкодера
 - :black_square_button: Выбранное энкодером "температуры поддержания" не запоминается, после выключения прибора, придется устанавливать заного (если электричество отключат и вновь включат).
-- :black_square_button: Добавить кнопку старт\стоп, чтобы исключить включение нагревателя при включении прибора.
+- :black_square_button: Добавить кнопку старт\стоп, чтобы исключить авто включение нагревателя при включении прибора.
 
 Развитие проекта
 ----------------
-- :black_square_button: Добавить контроль влажности
-- :black_square_button: Добаить контроль времени (продолжительности) сушки.
+- :black_square_button: Добавить управляемый контроль влажности
+- :black_square_button: Добавить управляемый контроль времени (продолжительности) сушки.
 - :black_square_button: **Программа рецептов.**
 
 
@@ -49,8 +49,8 @@
 
 Аналогичные проекты
 -------------------
-HumDry https://github.com/legioncmc/HumDry
-Dryasnack https://github.com/devonmagan/Dryasnack
-arduino-dehydrator https://github.com/hduijn/arduino-dehydrator
-Dehydrator https://github.com/truglodite/Dehydrator
+- HumDry https://github.com/legioncmc/HumDry
+- Dryasnack https://github.com/devonmagan/Dryasnack
+- arduino-dehydrator https://github.com/hduijn/arduino-dehydrator
+- Dehydrator https://github.com/truglodite/Dehydrator
 
