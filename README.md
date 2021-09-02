@@ -28,11 +28,13 @@
 
 Для существующей сушилки требуется создать автоматизацию. 
 Остается 
- 1. корпус 1
- 1. кнопка включения 1
- 1. внешний колпачек крутилки 1
- 1. нагреватель 1
- 1. вентилятор 1
+ 1. корпус
+ 1. кнопка включения
+ 1. внешний колпачек крутилки
+ 1. нагреватель
+ 1. вентилятор
+ ![Вид1](https://raw.githubusercontent.com/Octagon80/fruitsDehydration/main/hardware-overview-1.png)
+ ![Вид2](https://raw.githubusercontent.com/Octagon80/fruitsDehydration/main/hardware-overview-2.png)
  
  Добавляется
   - модуль управления Arduino Pro mini
